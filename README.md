@@ -117,4 +117,4 @@ Add chat history memory
 
 Add GPU acceleration for embeddings
 
-TO Run app : http://127.0.0.1:7860
+To Run app : http://127.0.0.1:7860
