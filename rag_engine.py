@@ -27,7 +27,6 @@ dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=dtype,
-    device_map="auto",
     trust_remote_code=True
 )
 
@@ -151,8 +150,8 @@ def rag_answer(question, k=3):
     output = model.generate(
         input_ids,
         max_new_tokens=150,
-        temperature=0.0,
         do_sample=False,
+        tokenizer=tokenizer,
     )
 
     raw = tokenizer.decode(output[0], skip_special_tokens=False)
