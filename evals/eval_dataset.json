@@ -1,0 +1,242 @@
+[
+    {
+        "id": 1,
+        "question": "What is the core mechanism of the Transformer architecture?",
+        "expected_answer": "Self-attention mechanism",
+        "keywords": ["self-attention", "attention"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 2,
+        "question": "What are the two main sub-layers in each layer of the encoder?",
+        "expected_answer": "A multi-head self-attention mechanism and a position-wise fully connected feed-forward network.",
+        "keywords": ["multi-head", "self-attention", "feed-forward", "fully connected"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 3,
+        "question": "How many layers does the encoder have in the base model?",
+        "expected_answer": "The encoder is composed of a stack of N=6 identical layers.",
+        "keywords": ["6", "six"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 4,
+        "question": "What is scaled dot-product attention?",
+        "expected_answer": "It is an attention mechanism that computes the dot products of the query with all keys, divides each by the square root of d_k, and applies a softmax function to obtain the weights on the values.",
+        "keywords": ["dot products", "query", "keys", "square root", "softmax", "values"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 5,
+        "question": "Why is the dot product scaled by 1/sqrt(d_k)?",
+        "expected_answer": "To prevent the dot products from growing large in magnitude and pushing the softmax function into regions with extremely small gradients.",
+        "keywords": ["magnitude", "softmax", "gradients", "large", "small"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 6,
+        "question": "What are the three inputs to the attention function?",
+        "expected_answer": "Queries, keys, and values.",
+        "keywords": ["queries", "keys", "values", "Q", "K", "V"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 7,
+        "question": "What is Multi-Head Attention?",
+        "expected_answer": "Instead of a single attention function, it linearly projects queries, keys, and values h times, performs attention in parallel on each, and concatenates the results.",
+        "keywords": ["project", "parallel", "concatenates", "h times", "multiple"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 8,
+        "question": "How many attention heads are used in the base Transformer model?",
+        "expected_answer": "8 attention heads (h=8).",
+        "keywords": ["8", "eight"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 9,
+        "question": "What is the dimensionality of the model (d_model)?",
+        "expected_answer": "512",
+        "keywords": ["512"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 10,
+        "question": "What is the dimensionality of the feed-forward network inner layer (d_ff)?",
+        "expected_answer": "2048",
+        "keywords": ["2048"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 11,
+        "question": "How does the Transformer handle the order of the sequence?",
+        "expected_answer": "It uses positional encodings (sine and cosine functions of different frequencies) added to the input embeddings.",
+        "keywords": ["positional encodings", "sine", "cosine"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 12,
+        "question": "What optimizer was used to train the Transformer?",
+        "expected_answer": "Adam optimizer.",
+        "keywords": ["Adam"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 13,
+        "question": "What regularization techniques were used during training?",
+        "expected_answer": "Residual dropout and label smoothing.",
+        "keywords": ["dropout", "label smoothing"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 14,
+        "question": "What is the BLEU score of the base model on English-to-German translation?",
+        "expected_answer": "27.3",
+        "keywords": ["27.3"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 15,
+        "question": "What is the BLEU score of the big model on English-to-French translation?",
+        "expected_answer": "41.0",
+        "keywords": ["41.0"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 16,
+        "question": "How many training steps were used for the base model?",
+        "expected_answer": "100,000 steps.",
+        "keywords": ["100,000", "100000", "100K"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 17,
+        "question": "What hardware was used to train the models?",
+        "expected_answer": "Machines with 8 NVIDIA P100 GPUs.",
+        "keywords": ["P100", "GPUs"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 18,
+        "question": "What is the benefit of self-attention over recurrent layers in terms of computational complexity per layer?",
+        "expected_answer": "Self-attention has O(n^2 * d) complexity, while recurrent is O(n * d^2). Self-attention is faster when the sequence length n is smaller than the representation dimensionality d.",
+        "keywords": ["complexity", "faster", "sequence length"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 19,
+        "question": "Does the model use convolutional layers?",
+        "expected_answer": "No, it relies entirely on attention mechanisms.",
+        "keywords": ["No", "entirely on attention"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 20,
+        "question": "What is the label smoothing value used in the paper?",
+        "expected_answer": "0.1",
+        "keywords": ["0.1"],
+        "is_answerable": true,
+        "type": "standard"
+    },
+    {
+        "id": 21,
+        "question": "What mathematical operation helps stabilize the gradients in the attention calculation?",
+        "expected_answer": "Scaling the dot products by 1/sqrt(d_k).",
+        "keywords": ["scaling", "sqrt", "d_k"],
+        "is_answerable": true,
+        "type": "hard"
+    },
+    {
+        "id": 22,
+        "question": "In the decoding phase, how is the model prevented from looking at future tokens?",
+        "expected_answer": "By using masked self-attention, which sets values to -infinity before the softmax.",
+        "keywords": ["masked", "masking", "-infinity", "illegal connections"],
+        "is_answerable": true,
+        "type": "hard"
+    },
+    {
+        "id": 23,
+        "question": "Describe the dropout strategy used in the architecture.",
+        "expected_answer": "Dropout is applied to the output of each sub-layer before addition and normalization, and to the sums of embeddings and positional encodings.",
+        "keywords": ["sub-layer", "addition", "normalization", "embeddings", "positional encodings"],
+        "is_answerable": true,
+        "type": "hard"
+    },
+    {
+        "id": 24,
+        "question": "How is the learning rate varied during the training process?",
+        "expected_answer": "It increases linearly for warmup_steps, then decreases proportionally to the inverse square root of the step number.",
+        "keywords": ["increases linearly", "warmup", "decreases", "inverse square root"],
+        "is_answerable": true,
+        "type": "hard"
+    },
+    {
+        "id": 25,
+        "question": "How do the sinusoidal positional encodings allow the model to generalize to longer sequences?",
+        "expected_answer": "They allow the model to easily learn to attend by relative positions, because any offset k can be represented as a linear function of pos.",
+        "keywords": ["relative positions", "linear function", "offset"],
+        "is_answerable": true,
+        "type": "hard"
+    },
+    {
+        "id": 26,
+        "question": "Who won the 2018 World Cup?",
+        "expected_answer": "I cannot find that information in the context.",
+        "keywords": [],
+        "is_answerable": false,
+        "type": "ood"
+    },
+    {
+        "id": 27,
+        "question": "How does the GPT-3 architecture differ from the original Transformer?",
+        "expected_answer": "I cannot find that information in the context.",
+        "keywords": [],
+        "is_answerable": false,
+        "type": "ood"
+    },
+    {
+        "id": 28,
+        "question": "What is the recipe for chocolate chip cookies?",
+        "expected_answer": "I cannot find that information in the context.",
+        "keywords": [],
+        "is_answerable": false,
+        "type": "ood"
+    },
+    {
+        "id": 29,
+        "question": "How many parameters does the LLaMA 3 model have?",
+        "expected_answer": "I cannot find that information in the context.",
+        "keywords": [],
+        "is_answerable": false,
+        "type": "ood"
+    },
+    {
+        "id": 30,
+        "question": "What is the weather like in New York today?",
+        "expected_answer": "I cannot find that information in the context.",
+        "keywords": [],
+        "is_answerable": false,
+        "type": "ood"
+    }
+]
