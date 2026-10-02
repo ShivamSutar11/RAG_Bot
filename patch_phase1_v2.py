@@ -1,0 +1,54 @@
+import re
+
+with open("rag_engine.py", "r") as f:
+    code = f.read()
+
+target = """    # Deterministic Refusal Check: Token-based matching to tolerate formatting
+    words = question.split()
+    if len(words) > 1:
+        salient_terms = [w for w in words[1:] if (not w.islower() or any(c.isdigit() for c in w))]
+        
+        def extract_tokens(text):
+            import re
+            return [t for t in re.split(r'[^a-zA-Z0-9]+', text.lower()) if len(t) > 1]
+            
+        context_norm = context.lower().replace("√", "sqrt").replace("\\\\sqrt", "sqrt").replace("_", "")
+        context_tokens = set(extract_tokens(context_norm))
+        
+        for term in salient_terms:
+            term_norm = term.lower().replace("√", "sqrt").replace("\\\\sqrt", "sqrt").replace("_", "")
+            term_tokens = extract_tokens(term_norm)
+            
+            # If the term tokenizes successfully, ensure at least one of its meaningful tokens is in the context
+            # Actually, to be strict, we require ALL of its sub-tokens to be present in context
+            missing_tokens = [wt for wt in term_tokens if wt not in context_tokens]
+            
+            # If tokens are missing, fall back to basic substring just in case tokenization broke it
+            if missing_tokens and term.lower().strip("?.,\\"'") not in context.lower():
+                return "I cannot find enough information in the uploaded document to answer this question.\""""
+
+replacement = """    # Deterministic Refusal Check: Alphanumeric substring matching to tolerate formatting
+    words = question.split()
+    if len(words) > 1:
+        salient_terms = [w for w in words[1:] if (not w.islower() or any(c.isdigit() for c in w))]
+        
+        # Normalize context into a single alphanumeric string for robust matching
+        context_norm = context.lower().replace("√", "sqrt").replace("\\\\sqrt", "sqrt")
+        context_alpha = "".join(c for c in context_norm if c.isalnum())
+        
+        for term in salient_terms:
+            term_norm = term.lower().replace("√", "sqrt").replace("\\\\sqrt", "sqrt")
+            term_alpha = "".join(c for c in term_norm if c.isalnum())
+            
+            if term_alpha and term_alpha not in context_alpha:
+                # Fallback to pure substring in case of weird concatenation
+                if term.lower().strip("?.,\\"'") not in context.lower():
+                    return "I cannot find enough information in the uploaded document to answer this question.\""""
+
+if target not in code:
+    print("WARNING: Target not found")
+else:
+    code = code.replace(target, replacement)
+    with open("rag_engine.py", "w") as f:
+        f.write(code)
+    print("Phase 1 V2 patch applied.")

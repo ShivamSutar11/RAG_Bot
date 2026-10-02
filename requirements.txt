@@ -8,3 +8,5 @@ pypdf
 torch
 gradio
 accelerate
+ragas
+datasets

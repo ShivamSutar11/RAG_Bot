@@ -90,28 +90,38 @@ import numpy as np
 bm25_index = None
 docs_global = []
 
+class MiniEmb(Embeddings):
+    def embed_documents(self, docs):
+        return embed_model.encode(docs, convert_to_tensor=False)
+    def embed_query(self, text):
+        return embed_model.encode([text], convert_to_tensor=False)[0]
+
+def build_index_for_docs(docs):
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_documents(docs)
+    
+    src_counts = {}
+    for c in chunks:
+        src = c.metadata.get("source", "unknown")
+        if src not in src_counts:
+            src_counts[src] = 0
+        c.metadata["chunk_idx"] = src_counts[src]
+        src_counts[src] += 1
+        
+    texts = [c.page_content for c in chunks]
+    metadatas = [c.metadata for c in chunks]
+    
+    db = FAISS.from_texts(texts, MiniEmb(), metadatas=metadatas)
+    tokenized_corpus = [doc.page_content.lower().split() for doc in chunks]
+    bm25 = BM25Okapi(tokenized_corpus)
+    return db, bm25, chunks
+
 def build_faiss():
     global bm25_index, docs_global
     docs = load_documents()
-
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_documents(docs)
-    docs_global = chunks
-
-    texts = [c.page_content for c in chunks]
-
-    class MiniEmb(Embeddings):
-        def embed_documents(self, docs):
-            return embed_model.encode(docs, convert_to_tensor=False)
-
-        def embed_query(self, text):
-            return embed_model.encode([text], convert_to_tensor=False)[0]
-
-    db = FAISS.from_texts(texts, MiniEmb())
-    
-    tokenized_corpus = [doc.page_content.lower().split() for doc in chunks]
-    bm25_index = BM25Okapi(tokenized_corpus)
-    print("✅ FAISS & BM25 indexes built.")
+    if not docs: return None
+    db, bm25_index, docs_global = build_index_for_docs(docs)
+    print("✅ Global FAISS & BM25 indexes built.")
     return db
 
 
@@ -148,17 +158,17 @@ def clean_output(text, question):
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "hf")
 LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 
-def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=False):
+def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=False, custom_db=None, custom_bm25=None, custom_docs=None):
 
     # Dense Search
     query_emb = embed_model.encode([question], convert_to_tensor=False)[0]
-    dense_docs = db.similarity_search_by_vector(query_emb, k=20)
+    dense_docs = (custom_db or db).similarity_search_by_vector(query_emb, k=20)
     
     # Sparse Search (BM25)
     tokenized_query = question.lower().split()
-    bm25_scores = bm25_index.get_scores(tokenized_query)
+    bm25_scores = (custom_bm25 or bm25_index).get_scores(tokenized_query)
     top_n = np.argsort(bm25_scores)[::-1][:20]
-    sparse_docs = [docs_global[i] for i in top_n]
+    sparse_docs = [(custom_docs or docs_global)[i] for i in top_n]
     
     # Deduplicate candidate pool
     unique_docs = {}
@@ -174,33 +184,136 @@ def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=Fal
     for idx in range(len(cross_scores)):
         candidates[idx].metadata['cross_score'] = cross_scores[idx]
         
-    # Sort by cross-encoder score descending
-    candidates = sorted(candidates, key=lambda x: x.metadata['cross_score'], reverse=True)
-    best_docs = candidates[:k]
+    # PHASE 2: Score fusion (RRF) + Preserve lexical
+    # Compute dense ranks
+    dense_ranks = {doc.page_content: i for i, doc in enumerate(dense_docs)}
+    # Compute sparse ranks
+    sparse_ranks = {doc.page_content: i for i, doc in enumerate(sparse_docs)}
     
-    # Lost in the middle ordering
-    reordered_docs = []
+    # Sort candidates by cross_score for cross ranks
+    candidates_by_cross = sorted(candidates, key=lambda x: x.metadata['cross_score'], reverse=True)
+    cross_ranks = {doc.page_content: i for i, doc in enumerate(candidates_by_cross)}
+    
+    # RRF parameters
+    K = 60
+    
+    for doc in candidates:
+        r_dense = dense_ranks.get(doc.page_content, 100)
+        r_sparse = sparse_ranks.get(doc.page_content, 100)
+        r_cross = cross_ranks.get(doc.page_content, 100)
+        
+        # Fuse scores
+        doc.metadata['fused_score'] = (1.0 / (K + r_dense)) + (1.0 / (K + r_sparse)) + (1.0 / (K + r_cross))
+        
+    # Sort by fused score
+    candidates = sorted(candidates, key=lambda x: x.metadata['fused_score'], reverse=True)
+    
+    # Preserve Strategy: Ensure the #1 BM25 candidate makes it into the top k
+    best_docs = []
+    top_bm25 = sparse_docs[0] if sparse_docs else None
+    if top_bm25:
+        best_docs.append(top_bm25)
+        
+    for doc in candidates:
+        if doc not in best_docs:
+            best_docs.append(doc)
+        if len(best_docs) == k:
+            break
+    
+    # 1. Context Expansion Strategy
+    def looks_incomplete(text):
+        t = text.strip()
+        if not t: return False
+        if t[0].islower(): return True # Starts mid-sentence
+        if not t[-1] in ".!?\"'": return True # Ends mid-sentence or heading
+        if t.count('|') > 3: return True # Table fragment
+        if "=" in t and t.endswith("="): return True # Formula fragment
+        return False
+
+    expanded_docs = []
+    chunk_map = { (d.metadata.get("source"), d.metadata.get("chunk_idx")): d for d in (custom_docs or docs_global) if "chunk_idx" in d.metadata }
+
     for i, doc in enumerate(best_docs):
-        if i % 2 == 0:
-            reordered_docs.insert(0, doc)
-        else:
-            reordered_docs.append(doc)
+        expanded_docs.append(doc)
+        src = doc.metadata.get("source")
+        c_idx = doc.metadata.get("chunk_idx")
+        if src is None or c_idx is None:
+            continue
             
+        # Unconditional neighbor expansion for the absolute top chunk
+        expand_prev = (i == 0) or looks_incomplete(doc.page_content[:150])
+        expand_next = (i == 0) or looks_incomplete(doc.page_content[-150:])
+        
+        if expand_prev and (src, c_idx - 1) in chunk_map:
+            expanded_docs.append(chunk_map[(src, c_idx - 1)])
+        if expand_next and (src, c_idx + 1) in chunk_map:
+            expanded_docs.append(chunk_map[(src, c_idx + 1)])
+
+    # Deduplicate expanded pool
+    unique_expanded = {}
+    for d in expanded_docs:
+        unique_expanded[d.page_content] = d
+    final_docs = list(unique_expanded.values())
+    
+    # Sort chronologically to restore document reading order
+    final_docs = sorted(final_docs, key=lambda x: (x.metadata.get("source", ""), x.metadata.get("chunk_idx", 0)))
+    
+    # Merge overlapping/redundant text
+    merged_blocks = []
+    current_block = None
+    
+    def merge_strings_with_overlap(s1, s2):
+        max_overlap = min(len(s1), len(s2), 500)
+        for i in range(max_overlap, 0, -1):
+            if s1.endswith(s2[:i]):
+                return s1 + s2[i:]
+        return s1 + "\n\n" + s2
+
+    for d in final_docs:
+        if current_block is None:
+            current_block = {"source": d.metadata.get("source"), "idxs": [d.metadata.get("chunk_idx")], "text": d.page_content}
+        else:
+            if d.metadata.get("source") == current_block["source"] and d.metadata.get("chunk_idx") == current_block["idxs"][-1] + 1:
+                current_block["text"] = merge_strings_with_overlap(current_block["text"], d.page_content)
+                current_block["idxs"].append(d.metadata.get("chunk_idx"))
+            else:
+                merged_blocks.append(current_block)
+                current_block = {"source": d.metadata.get("source"), "idxs": [d.metadata.get("chunk_idx")], "text": d.page_content}
+    if current_block:
+        merged_blocks.append(current_block)
+        
+    class DummyDoc:
+        def __init__(self, content):
+            self.page_content = content
+            self.metadata = {}
+
+    # Pack into dummy docs for compatibility
+    reordered_docs = [DummyDoc(b["text"]) for b in merged_blocks]
+
     global last_retrieved_docs
     last_retrieved_docs = reordered_docs
 
     context = "\n\n".join([d.page_content for d in reordered_docs])
 
-    # Deterministic Refusal Check: If question asks about a specific proper noun or number not in the context, refuse.
+    # Deterministic Refusal Check: Relaxed Match Count to avoid OOD false positives
     words = question.split()
     if len(words) > 1:
-        # Check capitalized words or words with numbers (ignoring the first word which is usually capitalized)
-        salient_terms = [w.strip("?.,\"'") for w in words[1:] if (not w.islower() or any(c.isdigit() for c in w)) and len(w.strip("?.,\"'")) > 1]
-        context_lower = context.lower()
-        for term in salient_terms:
-            if term.lower() not in context_lower:
+        salient_terms = [w for w in words[1:] if (not w.islower() or any(c.isdigit() for c in w))]
+        
+        if salient_terms:
+            context_norm = context.lower().replace("√", "sqrt").replace("\\sqrt", "sqrt")
+            context_alpha = "".join(c for c in context_norm if c.isalnum())
+            
+            match_count = 0
+            for term in salient_terms:
+                term_norm = term.lower().replace("√", "sqrt").replace("\\sqrt", "sqrt")
+                term_alpha = "".join(c for c in term_norm if c.isalnum())
+                
+                if len(term_alpha) > 1 and (term_alpha in context_alpha or term.lower().strip("?.,\"'") in context.lower()):
+                    match_count += 1
+            
+            if match_count == 0:
                 return "I cannot find enough information in the uploaded document to answer this question."
-
     system_prompt = (
         "You are an expert technical AI assistant.\n"
         "Your task is to answer the user's question accurately and comprehensively using ONLY the provided context.\n"
@@ -258,5 +371,5 @@ def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=Fal
 # ------------------------------------------------
 # 7) EXPOSE FOR UI
 # ------------------------------------------------
-def answer(query):
-    return rag_answer(query)
+def answer(query, custom_db=None, custom_bm25=None, custom_docs=None):
+    return rag_answer(query, custom_db=custom_db, custom_bm25=custom_bm25, custom_docs=custom_docs)

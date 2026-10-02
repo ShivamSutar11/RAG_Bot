@@ -44,6 +44,7 @@ def evaluate():
         except Exception as e:
             answer = ""
             error = str(e)
+            print(f"ERROR: {error}")
             
         latency = time.time() - start_time
         metrics["total_latency"] += latency

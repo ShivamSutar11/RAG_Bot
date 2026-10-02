@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "question": "What is the core mechanism of the Transformer architecture?",
+    "expected_answer": "Self-attention mechanism",
+    "keywords": [
+      "self-attention",
+      "attention"
+    ],
+    "is_answerable": true,
+    "type": "standard"
+  },
+  {
+    "id": 7,
+    "question": "What is Multi-Head Attention?",
+    "expected_answer": "Instead of a single attention function, it linearly projects queries, keys, and values h times, performs attention in parallel on each, and concatenates the results.",
+    "keywords": [
+      "project",
+      "parallel",
+      "concatenates",
+      "h times",
+      "multiple"
+    ],
+    "is_answerable": true,
+    "type": "standard"
+  },
+  {
+    "id": 13,
+    "question": "What regularization techniques were used during training?",
+    "expected_answer": "Residual dropout and label smoothing.",
+    "keywords": [
+      "dropout",
+      "label smoothing"
+    ],
+    "is_answerable": true,
+    "type": "standard"
+  },
+  {
+    "id": 15,
+    "question": "What is the BLEU score of the big model on English-to-French translation?",
+    "expected_answer": "41.0",
+    "keywords": [
+      "41.0"
+    ],
+    "is_answerable": true,
+    "type": "standard"
+  },
+  {
+    "id": 26,
+    "question": "Who won the 2018 World Cup?",
+    "expected_answer": "I cannot find that information in the context.",
+    "keywords": [],
+    "is_answerable": false,
+    "type": "ood"
+  }
+]
