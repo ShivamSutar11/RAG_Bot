@@ -3,7 +3,7 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { Upload, Trash2, Send, FileText, Loader2, RefreshCw } from 'lucide-react';
 
-const API_URL = 'http://127.0.0.1:8000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface Document {
   document_id: string;
