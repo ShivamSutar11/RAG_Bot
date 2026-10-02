@@ -1,0 +1,2 @@
+This book covers the basics of Machine Learning.
+The difference between supervised and unsupervised learning is that supervised learning uses labeled data, while unsupervised learning uses unlabeled data to find hidden patterns.

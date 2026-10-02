@@ -64,11 +64,11 @@ reranker_model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 def load_documents():
     docs = []
 
-    if not os.path.exists("./docs"):
+    if not os.path.exists(os.path.join(os.path.dirname(__file__), "..", "docs")):
         raise Exception("❗ Create a folder named 'docs' and put PDFs/TXTs inside it.")
 
-    for f in os.listdir("./docs"):
-        path = os.path.join("./docs", f)
+    for f in os.listdir(os.path.join(os.path.dirname(__file__), "..", "docs")):
+        path = os.path.join(os.path.dirname(__file__), "..", "docs", f)
 
         if f.endswith(".pdf"):
             docs.extend(PyPDFLoader(path).load())
@@ -176,6 +176,15 @@ def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=Fal
         unique_docs[d.page_content] = d
         
     candidates = list(unique_docs.values())
+    
+    # Hard safety check for document isolation
+    if custom_docs:
+        expected_source = custom_docs[0].metadata.get("source")
+        for doc in candidates:
+            if doc.metadata.get("source") != expected_source:
+                print(f"HARD SAFETY ERROR: Retrieved chunk from {doc.metadata.get('source')}, expected {expected_source}")
+                return "I cannot find enough information in the uploaded document to answer this question.", []
+
     
     # Cross-Encoder Reranking
     cross_inp = [[question, doc.page_content] for doc in candidates]
@@ -295,25 +304,25 @@ def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=Fal
 
     context = "\n\n".join([d.page_content for d in reordered_docs])
 
-    # Deterministic Refusal Check: Relaxed Match Count to avoid OOD false positives
-    words = question.split()
-    if len(words) > 1:
-        salient_terms = [w for w in words[1:] if (not w.islower() or any(c.isdigit() for c in w))]
-        
-        if salient_terms:
-            context_norm = context.lower().replace("√", "sqrt").replace("\\sqrt", "sqrt")
-            context_alpha = "".join(c for c in context_norm if c.isalnum())
+    # Improved Grounding Gate
+    import string
+    stopwords = {"what", "is", "the", "function", "of", "how", "why", "when", "who", "where", "are", "to", "in", "on", "at", "for", "a", "an", "and", "or", "but", "with", "by", "about", "between", "difference", "can", "could", "should", "would", "do", "does", "did", "from", "be", "have", "has", "had", "they", "their", "there", "were", "this", "that", "it"}
+    
+    clean_q = question.lower().translate(str.maketrans('', '', string.punctuation))
+    words = clean_q.split()
+    salient_terms = [w for w in words if w not in stopwords and len(w) > 2 and not w.isnumeric()]
+    
+    max_cross_score = max([d.metadata.get("cross_score", -999) for d in best_docs]) if best_docs else -999
+    
+    context_norm = context.lower()
+    match_count = 0
+    for term in salient_terms:
+        if term in context_norm:
+            match_count += 1
             
-            match_count = 0
-            for term in salient_terms:
-                term_norm = term.lower().replace("√", "sqrt").replace("\\sqrt", "sqrt")
-                term_alpha = "".join(c for c in term_norm if c.isalnum())
-                
-                if len(term_alpha) > 1 and (term_alpha in context_alpha or term.lower().strip("?.,\"'") in context.lower()):
-                    match_count += 1
-            
-            if match_count == 0:
-                return "I cannot find enough information in the uploaded document to answer this question."
+    if (salient_terms and match_count == 0) or max_cross_score < -5.0:
+        return "I cannot find enough information in the uploaded document to answer this question.", []
+
     system_prompt = (
         "You are an expert technical AI assistant.\n"
         "Your task is to answer the user's question accurately and comprehensively using ONLY the provided context.\n"
@@ -365,11 +374,14 @@ def rag_answer(question, k=5, max_new_tokens=200, temperature=0.0, do_sample=Fal
         raw = tokenizer.decode(output[0], skip_special_tokens=False)
 
     cleaned = clean_output(raw, question)
-    return cleaned
+    return cleaned, best_docs
 
 
 # ------------------------------------------------
 # 7) EXPOSE FOR UI
 # ------------------------------------------------
-def answer(query, custom_db=None, custom_bm25=None, custom_docs=None):
-    return rag_answer(query, custom_db=custom_db, custom_bm25=custom_bm25, custom_docs=custom_docs)
+def answer(query, custom_db=None, custom_bm25=None, custom_docs=None, return_docs=False):
+    ans, docs = rag_answer(query, custom_db=custom_db, custom_bm25=custom_bm25, custom_docs=custom_docs)
+    if return_docs:
+        return ans, docs
+    return ans
